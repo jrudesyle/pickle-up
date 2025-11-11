@@ -381,22 +381,22 @@ Each technology choice is evaluated on:
 
 ---
 
-## Summary: Recommended Stack
+## Summary: Confirmed Stack ✅
 
 | Layer | Technology | Rationale |
 |-------|-----------|-----------|
-| **Mobile** | Flutter | Performance, unified codebase |
-| **Backend** | Fastify + TypeScript | Speed, low overhead |
+| **Mobile** | Flutter + Riverpod | Performance, unified codebase, type-safe state |
+| **Backend** | Fastify + TypeScript | Speed, simplicity, low overhead |
+| **ORM** | Prisma | Best DX, TypeScript integration |
 | **Database** | PostgreSQL + PostGIS | Geospatial, reliability |
-| **Auth** | Twilio + JWT | Control, cost-effective |
+| **Auth** | JWT (email/password) | Simple for MVP, add Twilio later |
 | **Push** | Firebase (FCM) | Free, reliable |
-| **SMS** | Twilio | Industry standard |
-| **Email** | SendGrid → SES | Free tier → scale |
-| **Maps** | Google Maps | Best quality |
-| **Hosting** | Render → AWS | Fast MVP → scale |
-| **Cache** | Redis | Standard, powerful |
-| **Monitoring** | CloudWatch + Sentry | Cost-effective |
+| **Maps** | Google Maps (mock data initially) | Best quality, add API key later |
+| **Hosting** | Local + Docker Compose | Zero cost for MVP development |
+| **Cache** | Redis (Docker) | Standard, powerful |
+| **Secrets** | .env files | Simple for local dev |
 | **CI/CD** | GitHub Actions | Integrated, free |
+| **Tunneling** | ngrok | Mobile device testing |
 
 ---
 
@@ -426,20 +426,24 @@ Each technology choice is evaluated on:
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
-| 2025-11-11 | Flutter for mobile | Performance + unified codebase |
-| 2025-11-11 | Fastify for backend | Speed + TypeScript support |
-| 2025-11-11 | Custom auth (Twilio) | Cost + control |
-| 2025-11-11 | Render for hosting | Fast MVP deployment |
+| 2025-11-11 | Flutter for mobile | Performance + unified codebase + developer preference |
+| 2025-11-11 | Riverpod for state | Modern, type-safe, recommended by Flutter team |
+| 2025-11-11 | Fastify for backend | Speed + simplicity + TypeScript support |
+| 2025-11-11 | Prisma ORM | Best developer experience + TypeScript integration |
+| 2025-11-11 | Local development first | Zero cost MVP, deploy after validation |
+| 2025-11-11 | Docker Compose | Consistent local environment |
+| 2025-11-11 | JWT auth (no SMS) | Simple for MVP, avoid Twilio costs initially |
+| 2025-11-11 | ngrok for mobile testing | Test on real devices without deployment |
 
 ---
 
 ## Open Questions
 
-1. **Mobile State Management**: Riverpod vs. Bloc (Flutter)?
-2. **ORM**: Prisma vs. TypeORM vs. raw SQL?
-3. **WebSocket Library**: Socket.io vs. native WebSocket?
-4. **Image Storage**: S3 vs. Cloudinary?
-5. **Analytics**: Mixpanel vs. Amplitude vs. PostHog?
+1. ~~**Mobile State Management**: Riverpod vs. Bloc (Flutter)?~~ ✅ **Riverpod**
+2. ~~**ORM**: Prisma vs. TypeORM vs. raw SQL?~~ ✅ **Prisma**
+3. **WebSocket Library**: Socket.io vs. native WebSocket? (Defer until M1)
+4. **Image Storage**: S3 vs. Cloudinary? (Defer until needed)
+5. **Analytics**: Mixpanel vs. Amplitude vs. PostHog? (Defer until beta)
 
 ---
 

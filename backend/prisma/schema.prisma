@@ -1,0 +1,373 @@
+// Prisma schema for PickleUp
+// PostgreSQL with PostGIS extension
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// User Management
+// ============================================
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  passwordHash  String?
+  name          String
+  phone         String?   @unique
+  skillLevel    Decimal?  @db.Decimal(2, 1) // 2.0 - 5.5
+  timezone      String    @default("America/New_York")
+  pushToken     String?
+  avatarUrl     String?
+  role          UserRole  @default(PLAYER)
+  emailVerified Boolean   @default(false)
+  phoneVerified Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastSeenAt    DateTime?
+  deletedAt     DateTime?
+
+  // Relations
+  checkins          CourtCheckin[]
+  organizedLadders  Ladder[]           @relation("OrganizerLadders")
+  ladderMemberships LadderMember[]
+  managedCourts     Court[]            @relation("ManagedCourts")
+  favorites         UserFavorite[]
+  notifications     Notification[]
+  submittedResults  MatchResult[]      @relation("ResultSubmitter")
+  confirmedResults  MatchResult[]      @relation("ResultConfirmer")
+  invitesSent       LadderInvite[]
+  editSuggestions   CourtEditSuggestion[]
+
+  @@index([email])
+  @@index([phone])
+  @@map("users")
+}
+
+enum UserRole {
+  PLAYER
+  ORGANIZER
+  FACILITY_MANAGER
+  ADMIN
+}
+
+// ============================================
+// Courts
+// ============================================
+
+model Court {
+  id             String    @id @default(uuid())
+  name           String
+  address        String
+  latitude       Decimal   @db.Decimal(10, 8)
+  longitude      Decimal   @db.Decimal(11, 8)
+  type           CourtType @default(OUTDOOR)
+  surface        String?
+  hasLights      Boolean   @default(false)
+  isFree         Boolean   @default(true)
+  feeAmount      Decimal?  @db.Decimal(6, 2)
+  feeDescription String?
+  courtsCount    Int       @default(1)
+  openHours      Json?     // { "mon": ["08:00-20:00"], ... }
+  amenities      String[]
+  description    String?
+  websiteUrl     String?
+  phone          String?
+  verified       Boolean   @default(false)
+  verifiedAt     DateTime?
+  photos         String[]
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  // Relations
+  managedBy       User?              @relation("ManagedCourts", fields: [managedById], references: [id])
+  managedById     String?
+  checkins        CourtCheckin[]
+  favorites       UserFavorite[]
+  matches         Match[]
+  editSuggestions CourtEditSuggestion[]
+
+  @@index([latitude, longitude])
+  @@index([type])
+  @@index([verified])
+  @@map("courts")
+}
+
+enum CourtType {
+  OUTDOOR
+  INDOOR
+  MIXED
+}
+
+model CourtCheckin {
+  id         String   @id @default(uuid())
+  courtId    String
+  userId     String
+  startAt    DateTime @default(now())
+  endAt      DateTime
+  durationMin Int
+  status     CheckinStatus @default(ACTIVE)
+  createdAt  DateTime @default(now())
+
+  // Relations
+  court Court @relation(fields: [courtId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([courtId, status, endAt])
+  @@index([userId])
+  @@map("court_checkins")
+}
+
+enum CheckinStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+model UserFavorite {
+  userId    String
+  courtId   String
+  createdAt DateTime @default(now())
+
+  // Relations
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  court Court @relation(fields: [courtId], references: [id], onDelete: Cascade)
+
+  @@id([userId, courtId])
+  @@map("user_favorites")
+}
+
+// ============================================
+// Ladders & Matches
+// ============================================
+
+model Ladder {
+  id          String   @id @default(uuid())
+  orgUserId   String
+  name        String
+  description String?
+  format      LadderFormat @default(SINGLES)
+  seasonStart DateTime
+  seasonEnd   DateTime
+  homeCourts  String[] // Array of court IDs
+  visibility  LadderVisibility @default(PUBLIC)
+  maxMembers  Int      @default(50)
+  status      LadderStatus @default(ACTIVE)
+  settings    Json     @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  organizer User           @relation("OrganizerLadders", fields: [orgUserId], references: [id])
+  members   LadderMember[]
+  matches   Match[]
+  invites   LadderInvite[]
+
+  @@index([orgUserId])
+  @@index([status])
+  @@map("ladders")
+}
+
+enum LadderFormat {
+  SINGLES
+  DOUBLES
+  MIXED_DOUBLES
+}
+
+enum LadderVisibility {
+  PUBLIC
+  PRIVATE
+  INVITE_ONLY
+}
+
+enum LadderStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+model LadderMember {
+  ladderId           String
+  userId             String
+  role               MemberRole @default(MEMBER)
+  skillBand          String?
+  availabilityWindows Json?
+  notifyPref         String     @default("all")
+  ranking            Int?
+  points             Int        @default(0)
+  wins               Int        @default(0)
+  losses             Int        @default(0)
+  joinedAt           DateTime   @default(now())
+
+  // Relations
+  ladder Ladder @relation(fields: [ladderId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([ladderId, userId])
+  @@index([userId])
+  @@index([ladderId, ranking])
+  @@map("ladder_members")
+}
+
+enum MemberRole {
+  ORGANIZER
+  MEMBER
+}
+
+model Match {
+  id            String      @id @default(uuid())
+  ladderId      String
+  courtId       String?
+  status        MatchStatus @default(SCHEDULED)
+  startAt       DateTime
+  endAt         DateTime?
+  teamA         String[]    // Array of user IDs
+  teamB         String[]    // Array of user IDs
+  proposedSlots Json?
+  declinedBy    String[]
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  // Relations
+  ladder Ladder       @relation(fields: [ladderId], references: [id], onDelete: Cascade)
+  court  Court?       @relation(fields: [courtId], references: [id], onDelete: SetNull)
+  result MatchResult?
+
+  @@index([ladderId, startAt])
+  @@index([courtId, startAt])
+  @@index([status])
+  @@map("matches")
+}
+
+enum MatchStatus {
+  SCHEDULED
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  FORFEITED
+}
+
+model MatchResult {
+  matchId      String   @id
+  sets         Json     // [{"team_a": 11, "team_b": 9}, ...]
+  winner       String   // "team_a" | "team_b" | "draw"
+  submittedBy  String
+  confirmedBy  String?
+  confirmedAt  DateTime?
+  disputeReason String?
+  disputedAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  match       Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  submitter   User  @relation("ResultSubmitter", fields: [submittedBy], references: [id])
+  confirmer   User? @relation("ResultConfirmer", fields: [confirmedBy], references: [id])
+
+  @@index([confirmedAt])
+  @@map("match_results")
+}
+
+// ============================================
+// Invitations
+// ============================================
+
+model LadderInvite {
+  id        String       @id @default(uuid())
+  ladderId  String
+  invitedBy String
+  phone     String?
+  email     String?
+  token     String       @unique
+  status    InviteStatus @default(PENDING)
+  expiresAt DateTime
+  acceptedAt DateTime?
+  createdAt DateTime     @default(now())
+
+  // Relations
+  ladder  Ladder @relation(fields: [ladderId], references: [id], onDelete: Cascade)
+  inviter User   @relation(fields: [invitedBy], references: [id])
+
+  @@index([token, status])
+  @@index([ladderId])
+  @@map("ladder_invites")
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+// ============================================
+// Notifications
+// ============================================
+
+model Notification {
+  id        String             @id @default(uuid())
+  userId    String
+  type      String
+  title     String
+  body      String
+  data      Json?
+  channels  String[]
+  status    NotificationStatus @default(PENDING)
+  sentAt    DateTime?
+  readAt    DateTime?
+  createdAt DateTime           @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@map("notifications")
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  READ
+}
+
+// ============================================
+// Court Edit Suggestions
+// ============================================
+
+model CourtEditSuggestion {
+  id          String               @id @default(uuid())
+  courtId     String
+  suggestedBy String
+  fieldName   String
+  oldValue    String?
+  newValue    String
+  reason      String?
+  status      SuggestionStatus     @default(PENDING)
+  reviewedBy  String?
+  reviewedAt  DateTime?
+  createdAt   DateTime             @default(now())
+
+  // Relations
+  court     Court @relation(fields: [courtId], references: [id], onDelete: Cascade)
+  suggester User  @relation(fields: [suggestedBy], references: [id])
+
+  @@index([courtId])
+  @@index([status])
+  @@map("court_edit_suggestions")
+}
+
+enum SuggestionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
